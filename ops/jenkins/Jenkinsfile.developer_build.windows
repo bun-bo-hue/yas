@@ -24,7 +24,14 @@ pipeline {
 
   environment {
     BASE_NAMESPACE = "yas-${params.NAMESPACE_SUFFIX}"
-    KUBECONFIG = 'C:\\ProgramData\\Jenkins\\.kube\\config'
+
+    /*
+      Nếu Jenkins test Minikube của bạn đang pass bằng path khác,
+      đổi dòng dưới đây cho đúng.
+      Với máy bạn hiện tại thường là:
+      C:\\Users\\letha\\.kube\\config
+    */
+    KUBECONFIG = 'C:\\Users\\letha\\.kube\\config'
   }
 
   stages {
@@ -32,21 +39,39 @@ pipeline {
       steps {
         checkout scm
         powershell '''
+        $ErrorActionPreference = "Stop"
+
         git remote -v
         git branch -a
         '''
       }
     }
 
-    stage('Check Windows tools') {
+    stage('Check Windows tools and Minikube') {
       steps {
         powershell '''
         $ErrorActionPreference = "Stop"
+
+        Write-Host "=== Tool versions ==="
         git --version
         kubectl version --client
-        helm version
+        minikube version
+
+        Write-Host "=== Optional Helm check ==="
+        if (Get-Command helm -ErrorAction SilentlyContinue) {
+          helm version
+        } else {
+          Write-Host "Helm not found. Skip helm check."
+        }
+
+        Write-Host "=== Kubernetes context ==="
         kubectl config use-context minikube
+        kubectl config current-context
+
+        Write-Host "=== Minikube status ==="
         minikube status
+
+        Write-Host "=== Kubernetes nodes ==="
         kubectl get nodes
         '''
       }
@@ -78,27 +103,46 @@ pipeline {
 
           mapping.each { key, branchValue ->
             def branch = branchValue.trim()
+
             if (branch == 'main') {
               lines.add("TAG_${key}=main")
             } else {
+              /*
+                CI workflow tag image bằng full commit SHA: github.sha.
+                Vì vậy Jenkins phải resolve branch thành full SHA,
+                không dùng short SHA 7 ký tự.
+              */
               def psScript = """
+              \$ErrorActionPreference = "Stop"
               \$line = git ls-remote origin refs/heads/${branch}
-              if ([string]::IsNullOrWhiteSpace(\$line)) { exit 0 }
-              \$sha = (\$line -split '\\s+')[0]
-              \$sha.Substring(0, 7)
+              if ([string]::IsNullOrWhiteSpace(\$line)) {
+                exit 0
+              }
+              \$sha = (\$line -split '\\\\s+')[0]
+              Write-Output \$sha
               """
+
               def sha = powershell(returnStdout: true, script: psScript).trim()
+
               if (sha == '') {
                 error("Branch '${branch}' was not found on origin. Check ${key}_BRANCH parameter.")
               }
+
               lines.add("TAG_${key}=${sha}")
             }
           }
 
           writeFile file: '.deploy.env', text: lines.join('\n') + '\n'
+
           powershell '''
+          Write-Host "=== Resolved deployment environment ==="
+
           Get-Content .deploy.env | ForEach-Object {
-            if ($_ -match "DOCKERHUB_USER=") { "DOCKERHUB_USER=***masked***" } else { $_ }
+            if ($_ -match "^DOCKERHUB_USER=") {
+              "DOCKERHUB_USER=***masked***"
+            } else {
+              $_
+            }
           }
           '''
         }
@@ -109,7 +153,21 @@ pipeline {
       steps {
         powershell '''
         $ErrorActionPreference = "Stop"
-        powershell -ExecutionPolicy Bypass -File .\ops\windows\deploy-yas-core.ps1
+
+        Write-Host "=== Loading .deploy.env into current PowerShell process ==="
+
+        Get-Content .deploy.env | ForEach-Object {
+          if ($_ -match "^(.*?)=(.*)$") {
+            $name = $matches[1]
+            $value = $matches[2]
+            Set-Item -Path "env:$name" -Value $value
+          }
+        }
+
+        Write-Host "Deploy namespace: $env:NAMESPACE"
+        Write-Host "Docker Hub user: $env:DOCKERHUB_USER"
+
+        powershell -NoProfile -ExecutionPolicy Bypass -File ./ops/windows/deploy-yas-core.ps1
         '''
       }
     }
@@ -117,7 +175,9 @@ pipeline {
     stage('Collect evidence') {
       steps {
         powershell '''
-        powershell -ExecutionPolicy Bypass -File .\ops\windows\collect-evidence.ps1 -Namespace $env:BASE_NAMESPACE
+        $ErrorActionPreference = "Stop"
+
+        powershell -NoProfile -ExecutionPolicy Bypass -File ./ops/windows/collect-evidence.ps1 -Namespace "$env:BASE_NAMESPACE"
         '''
       }
     }
@@ -125,7 +185,9 @@ pipeline {
     stage('Print Minikube access links') {
       steps {
         powershell '''
-        powershell -ExecutionPolicy Bypass -File .\ops\windows\Get-AccessUrls.ps1 -Namespace $env:BASE_NAMESPACE -Domain "${env:DOMAIN}"
+        $ErrorActionPreference = "Stop"
+
+        powershell -NoProfile -ExecutionPolicy Bypass -File ./ops/windows/Get-AccessUrls.ps1 -Namespace "$env:BASE_NAMESPACE" -Domain "$env:DOMAIN"
         '''
       }
     }
