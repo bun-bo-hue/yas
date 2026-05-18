@@ -151,13 +151,44 @@ Build-Dependency "swagger-ui"
 $swaggerPath = Test-ChartPath "swagger-ui"
 Invoke-Checked "helm upgrade --install swagger-ui `"$swaggerPath`" --namespace $Namespace --create-namespace --set ingress.host=api.$Domain"
 
-foreach ($svc in @("storefront-bff", "storefront-ui", "backoffice-bff", "backoffice-ui", "swagger-ui")) {
+Write-Host "=== Patch selected services to NodePort ===" -ForegroundColor Green
+
+$nodePortServices = @(
+    "storefront-bff",
+    "storefront-ui",
+    "backoffice-bff",
+    "backoffice-ui",
+    "swagger-ui"
+)
+
+foreach ($svc in $nodePortServices) {
     $existingService = kubectl -n $Namespace get svc $svc --ignore-not-found -o name
-    if (![string]::IsNullOrWhiteSpace($existingService)) {
-        kubectl -n $Namespace patch svc $svc -p '{"spec":{"type":"NodePort"}}' | Out-Host
-    } else {
-        Write-Host "WARN: service $svc not found; check Helm output." -ForegroundColor Yellow
+
+    if ([string]::IsNullOrWhiteSpace($existingService)) {
+        Write-Host "WARN: service $svc not found. Skip NodePort patch." -ForegroundColor Yellow
+        continue
     }
+
+    Write-Host "Patch service $svc to NodePort" -ForegroundColor Cyan
+
+    $patchFile = Join-Path $env:TEMP "nodeport-patch-$svc.json"
+
+    @'
+{
+  "spec": {
+    "type": "NodePort"
+  }
+}
+'@ | Set-Content -Path $patchFile -Encoding UTF8
+
+    kubectl -n $Namespace patch svc $svc --type=merge --patch-file $patchFile | Out-Host
+
+    if ($LASTEXITCODE -ne 0) {
+        Remove-Item $patchFile -Force -ErrorAction SilentlyContinue
+        throw "Failed to patch service $svc to NodePort"
+    }
+
+    Remove-Item $patchFile -Force -ErrorAction SilentlyContinue
 }
 
 foreach ($deploy in @("product", "cart", "order", "customer", "inventory", "tax", "media", "search", "storefront-bff", "storefront-ui", "backoffice-bff", "backoffice-ui", "swagger-ui")) {
