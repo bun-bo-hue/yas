@@ -3,7 +3,7 @@ pipeline {
 
   parameters {
     string(name: 'NAMESPACE_SUFFIX', defaultValue: 'dev01', description: 'Namespace suffix. Final namespace = yas-<suffix>. Example: dev-tax')
-    string(name: 'DOCKERHUB_USER', defaultValue: 'CHANGE_ME', description: 'Docker Hub username/namespace that stores yas-* images')
+    string(name: 'DOCKERHUB_USER', defaultValue: 'juzharii', description: 'Docker Hub username/namespace that stores yas-* images')
     string(name: 'DOMAIN', defaultValue: 'yas.local', description: 'Local domain used with Windows hosts file')
 
     string(name: 'PRODUCT_BRANCH', defaultValue: 'main', description: 'Branch for product service')
