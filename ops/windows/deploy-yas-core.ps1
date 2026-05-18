@@ -95,6 +95,20 @@ function Deploy-UiChart {
     Invoke-Checked "helm upgrade --install $Chart `"$path`" --namespace $Namespace --create-namespace --set ui.image.repository=$repo --set ui.image.tag=$tag --set ui.ingress.enabled=false"
 }
 
+function Deploy-YasConfiguration {
+    $chart = "yas-configuration"
+    $path = Test-ChartPath $chart
+
+    Write-Host "=== Deploy YAS shared configuration ===" -ForegroundColor Green
+
+    Build-Dependency $chart
+
+    Invoke-Checked "helm upgrade --install yas-configuration `"$path`" --namespace $Namespace --create-namespace"
+
+    Write-Host "=== Verify YAS configuration ConfigMaps ===" -ForegroundColor Green
+    kubectl -n $Namespace get configmap yas-configuration-configmap | Out-Host
+}
+
 Import-DotEnv ".deploy.env"
 
 if (![string]::IsNullOrWhiteSpace($KubeConfig) -and (Test-Path $KubeConfig)) {
@@ -117,6 +131,7 @@ if ($enableIstio -eq "true" -or $enableIstio -eq "True") {
     kubectl label namespace $Namespace istio-injection=enabled --overwrite | Out-Host
 }
 
+Deploy-YasConfiguration
 Deploy-BackendChart "product" "product"
 Deploy-BackendChart "cart" "cart"
 Deploy-BackendChart "order" "order"
