@@ -127,9 +127,9 @@ Deploy-BackendChart "media" "media"
 Deploy-BackendChart "search" "search"
 
 Deploy-BffChart "storefront-bff" "storefront-bff" "storefront"
-Deploy-UiChart "storefront-ui" "storefront"
+Deploy-UiChart "storefront-ui" "storefront-ui"
 Deploy-BffChart "backoffice-bff" "backoffice-bff" "backoffice"
-Deploy-UiChart "backoffice-ui" "backoffice"
+Deploy-UiChart "backoffice-ui" "backoffice-ui"
 
 Write-Host "=== Deploy swagger-ui chart ===" -ForegroundColor Green
 Build-Dependency "swagger-ui"
