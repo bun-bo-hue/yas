@@ -92,6 +92,26 @@ jobs:
             echo "If YAS changes Dockerfile layout, update matrix.context/file in .github/workflows/project02-ci-dockerhub.yml"
             exit 1
           fi
+      - name: Set up Java
+        if: ${{ matrix.service != 'storefront-ui' && matrix.service != 'backoffice-ui' }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "25"
+          cache: "maven"
+
+      - name: Build Maven artifact
+        if: ${{ matrix.service != 'storefront-ui' && matrix.service != 'backoffice-ui' }}
+        shell: bash
+        run: |
+          if [ -f "./mvnw" ]; then
+            chmod +x ./mvnw
+            MVN="./mvnw"
+          else
+            MVN="mvn"
+          fi
+
+          $MVN -B -pl "${{ matrix.context }}" -am -DskipTests package
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
