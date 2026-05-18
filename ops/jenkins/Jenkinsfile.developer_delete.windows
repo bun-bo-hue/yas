@@ -1,0 +1,25 @@
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'NAMESPACE_SUFFIX', defaultValue: 'dev01', description: 'Namespace suffix used in developer_build. Final namespace = yas-<suffix>.')
+  }
+
+  environment {
+    TARGET_NAMESPACE = "yas-${params.NAMESPACE_SUFFIX}"
+    KUBECONFIG = 'C:\\ProgramData\\Jenkins\\.kube\\config'
+  }
+
+  stages {
+    stage('Delete deployment namespace') {
+      steps {
+        powershell '''
+        $ErrorActionPreference = "Stop"
+        kubectl config use-context docker-desktop
+        powershell -ExecutionPolicy Bypass -File .\ops\windows\delete-dev-env.ps1 -Namespace $env:TARGET_NAMESPACE
+        kubectl get namespace $env:TARGET_NAMESPACE
+        '''
+      }
+    }
+  }
+}

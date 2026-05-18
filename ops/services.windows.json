@@ -1,0 +1,42 @@
+{
+  "coreServices": [
+    "product",
+    "cart",
+    "order",
+    "customer",
+    "inventory",
+    "tax",
+    "media",
+    "search",
+    "storefront-bff",
+    "storefront-ui",
+    "backoffice-bff",
+    "backoffice-ui",
+    "swagger-ui"
+  ],
+  "disabledServices": [
+    "payment",
+    "payment-paypal",
+    "debezium-connect",
+    "promotion",
+    "rating",
+    "recommendation",
+    "sampledata",
+    "webhook",
+    "location"
+  ],
+  "ciBuildImages": {
+    "product": "yas-product",
+    "cart": "yas-cart",
+    "order": "yas-order",
+    "customer": "yas-customer",
+    "inventory": "yas-inventory",
+    "tax": "yas-tax",
+    "media": "yas-media",
+    "search": "yas-search",
+    "storefront-bff": "yas-storefront-bff",
+    "backoffice-bff": "yas-backoffice-bff",
+    "storefront-ui": "yas-storefront",
+    "backoffice-ui": "yas-backoffice"
+  }
+}

@@ -1,0 +1,20 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: tax-retry-policy
+  namespace: yas-dev
+spec:
+  hosts:
+    - tax
+    - tax.yas-dev.svc.cluster.local
+  http:
+    - route:
+        - destination:
+            host: tax.yas-dev.svc.cluster.local
+            port:
+              number: 80
+      retries:
+        attempts: 3
+        perTryTimeout: 2s
+        retryOn: 5xx,connect-failure,refused-stream,gateway-error
+      timeout: 8s

@@ -1,0 +1,18 @@
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-order-to-tax-only
+  namespace: yas-dev
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tax
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/yas-dev/sa/order
+      to:
+        - operation:
+            ports: ["80", "8090"]
