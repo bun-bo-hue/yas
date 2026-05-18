@@ -15,7 +15,7 @@ pipeline {
       steps {
         powershell '''
         $ErrorActionPreference = "Stop"
-        kubectl config use-context docker-desktop
+        kubectl config use-context minikube
         powershell -ExecutionPolicy Bypass -File .\ops\windows\delete-dev-env.ps1 -Namespace $env:TARGET_NAMESPACE
         kubectl get namespace $env:TARGET_NAMESPACE
         '''

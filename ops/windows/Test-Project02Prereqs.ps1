@@ -1,38 +1,27 @@
 $ErrorActionPreference = "Continue"
 
-Write-Host "=== Project 02 Windows prerequisites check ==="
-
-function Test-CommandExists {
-    param([string]$Name)
-    $cmd = Get-Command $Name -ErrorAction SilentlyContinue
-    if ($null -eq $cmd) {
-        Write-Host "[MISSING] $Name" -ForegroundColor Red
-        return $false
-    }
-    Write-Host "[OK] $Name -> $($cmd.Source)" -ForegroundColor Green
-    return $true
+function Test-Cmd($name) {
+    $cmd = Get-Command $name -ErrorAction SilentlyContinue
+    if ($cmd) { Write-Host "[OK] $name -> $($cmd.Source)" -ForegroundColor Green }
+    else { Write-Host "[MISSING] $name" -ForegroundColor Red }
 }
 
-$tools = @("git", "docker", "kubectl", "helm", "java")
-foreach ($tool in $tools) { Test-CommandExists $tool | Out-Null }
+Write-Host "=== Checking tools ===" -ForegroundColor Cyan
+foreach ($c in @('git','docker','kubectl','helm','minikube','java','javac')) { Test-Cmd $c }
 
-Write-Host ""
-Write-Host "=== Versions ==="
-try { git --version } catch {}
-try { docker --version } catch {}
-try { kubectl version --client } catch {}
-try { helm version } catch {}
-try { java -version } catch {}
+Write-Host "\n=== Versions ===" -ForegroundColor Cyan
+git --version
+docker --version
+kubectl version --client
+helm version
+minikube version
+java --version
+javac --version
 
-Write-Host ""
-Write-Host "=== Kubernetes context ==="
-try {
-    kubectl config current-context
-    kubectl get nodes -o wide
-} catch {
-    Write-Host "Cannot query Kubernetes. Open Docker Desktop and enable Kubernetes." -ForegroundColor Yellow
-}
+Write-Host "\n=== Kubernetes context ===" -ForegroundColor Cyan
+kubectl config get-contexts
+kubectl config use-context minikube
+kubectl get nodes -o wide
 
-Write-Host ""
-Write-Host "=== Docker info ==="
-try { docker info --format "Docker server: {{.ServerVersion}}, OSType: {{.OSType}}" } catch {}
+Write-Host "\n=== Minikube status ===" -ForegroundColor Cyan
+minikube status

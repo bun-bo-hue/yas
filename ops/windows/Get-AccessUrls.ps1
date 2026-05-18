@@ -10,24 +10,44 @@ function Get-NodePort {
     return $port
 }
 
-$storePort = Get-NodePort "storefront-bff"
-$backPort = Get-NodePort "backoffice-bff"
-$swaggerPort = Get-NodePort "swagger-ui"
-$grafanaPort = "N/A"
-
-$grafanaSvcs = kubectl get svc -A -o jsonpath='{range .items[?(@.metadata.name=="grafana")]}{.metadata.namespace}{"/"}{.metadata.name}{" "}{.spec.ports[0].nodePort}{"\n"}{end}' 2>$null
-if ($grafanaSvcs) {
-    $first = ($grafanaSvcs -split "\r?\n" | Where-Object { $_ -match "grafana" } | Select-Object -First 1)
-    if ($first) { $grafanaPort = ($first -split " ")[-1] }
+function Get-MinikubeUrl {
+    param([string]$Svc)
+    $url = minikube service $Svc -n $Namespace --url 2>$null | Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace($url)) { return "N/A" }
+    return $url
 }
 
+$minikubeIp = minikube ip 2>$null
+if ([string]::IsNullOrWhiteSpace($minikubeIp)) { $minikubeIp = "<minikube-ip>" }
+
+$storeUiPort = Get-NodePort "storefront-ui"
+$storeBffPort = Get-NodePort "storefront-bff"
+$backUiPort = Get-NodePort "backoffice-ui"
+$backBffPort = Get-NodePort "backoffice-bff"
+$swaggerPort = Get-NodePort "swagger-ui"
+
+$storeUiUrl = Get-MinikubeUrl "storefront-ui"
+$storeBffUrl = Get-MinikubeUrl "storefront-bff"
+$backUiUrl = Get-MinikubeUrl "backoffice-ui"
+$backBffUrl = Get-MinikubeUrl "backoffice-bff"
+$swaggerUrl = Get-MinikubeUrl "swagger-ui"
+
 Write-Host ""
-Write-Host "=== Developer access URLs on Docker Desktop Kubernetes ===" -ForegroundColor Green
-Write-Host "Storefront BFF : http://localhost:$storePort"
-Write-Host "Backoffice BFF : http://localhost:$backPort"
-Write-Host "Swagger UI     : http://localhost:$swaggerPort"
-if ($grafanaPort -ne "N/A" -and $grafanaPort -ne "<none>") { Write-Host "Grafana        : http://localhost:$grafanaPort" }
+Write-Host "=== Developer access URLs on Minikube ===" -ForegroundColor Green
+Write-Host "Minikube IP    : $minikubeIp"
+Write-Host "Storefront UI  : http://${minikubeIp}:$storeUiPort"
+Write-Host "Storefront BFF : http://${minikubeIp}:$storeBffPort"
+Write-Host "Backoffice UI  : http://${minikubeIp}:$backUiPort"
+Write-Host "Backoffice BFF : http://${minikubeIp}:$backBffPort"
+Write-Host "Swagger UI     : http://${minikubeIp}:$swaggerPort"
 Write-Host ""
-Write-Host "Optional hosts entry for report/demo domain:" -ForegroundColor Cyan
-Write-Host "127.0.0.1 storefront.$Domain backoffice.$Domain api.$Domain grafana.$Domain identity.$Domain"
+Write-Host "Alternative URLs from minikube service --url:" -ForegroundColor Cyan
+Write-Host "Storefront UI  : $storeUiUrl"
+Write-Host "Storefront BFF : $storeBffUrl"
+Write-Host "Backoffice UI  : $backUiUrl"
+Write-Host "Backoffice BFF : $backBffUrl"
+Write-Host "Swagger UI     : $swaggerUrl"
+Write-Host ""
+Write-Host "Optional hosts entry for domain demo:" -ForegroundColor Cyan
+Write-Host "$minikubeIp storefront.$Domain backoffice.$Domain api.$Domain grafana.$Domain identity.$Domain"
 Write-Host ""

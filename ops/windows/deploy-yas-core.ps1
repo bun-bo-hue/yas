@@ -4,7 +4,7 @@ param(
     [string]$Domain = $env:DOMAIN,
     [string]$ChartsDir = "k8s/charts",
     [string]$TagDefault = "main",
-    [string]$KubeConfig = "C:\ProgramData\Jenkins\.kube\config"
+    [string]$KubeConfig = $env:KUBECONFIG
 )
 
 $ErrorActionPreference = "Stop"
@@ -101,7 +101,7 @@ if (Test-Path $KubeConfig) {
     $env:KUBECONFIG = $KubeConfig
 }
 
-kubectl config use-context docker-desktop | Out-Host
+kubectl config use-context minikube | Out-Host
 
 Write-Host "=== Namespace: $Namespace ===" -ForegroundColor Green
 kubectl get namespace $Namespace 2>$null | Out-Null
@@ -131,7 +131,7 @@ Build-Dependency "swagger-ui"
 $swaggerPath = Test-ChartPath "swagger-ui"
 Invoke-Checked "helm upgrade --install swagger-ui `"$swaggerPath`" --namespace $Namespace --create-namespace --set ingress.host=api.$Domain"
 
-foreach ($svc in @("storefront-bff", "backoffice-bff", "swagger-ui")) {
+foreach ($svc in @("storefront-bff", "storefront-ui", "backoffice-bff", "backoffice-ui", "swagger-ui")) {
     kubectl -n $Namespace get svc $svc 2>$null | Out-Null
     if ($LASTEXITCODE -eq 0) {
         kubectl -n $Namespace patch svc $svc -p '{"spec":{"type":"NodePort"}}' | Out-Host

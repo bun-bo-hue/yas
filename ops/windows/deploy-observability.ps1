@@ -1,10 +1,10 @@
 param(
-    [string]$KubeConfig = "C:\ProgramData\Jenkins\.kube\config"
+    [string]$KubeConfig = $env:KUBECONFIG
 )
 
 $ErrorActionPreference = "Stop"
 if (Test-Path $KubeConfig) { $env:KUBECONFIG = $KubeConfig }
-kubectl config use-context docker-desktop | Out-Host
+kubectl config use-context minikube | Out-Host
 
 Write-Host "=== Deploy YAS Observability ===" -ForegroundColor Green
 

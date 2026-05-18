@@ -45,7 +45,8 @@ pipeline {
         git --version
         kubectl version --client
         helm version
-        kubectl config use-context docker-desktop
+        kubectl config use-context minikube
+        minikube status
         kubectl get nodes
         '''
       }
@@ -121,7 +122,7 @@ pipeline {
       }
     }
 
-    stage('Print access links') {
+    stage('Print Minikube access links') {
       steps {
         powershell '''
         powershell -ExecutionPolicy Bypass -File .\ops\windows\Get-AccessUrls.ps1 -Namespace $env:BASE_NAMESPACE -Domain "${env:DOMAIN}"

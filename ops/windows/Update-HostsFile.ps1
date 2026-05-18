@@ -3,17 +3,16 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
-$entry = "127.0.0.1 storefront.$Domain backoffice.$Domain api.$Domain grafana.$Domain identity.$Domain"
+$ip = minikube ip
+$hostsPath = "$env:WINDIR\System32\drivers\etc\hosts"
+$line = "$ip storefront.$Domain backoffice.$Domain api.$Domain grafana.$Domain identity.$Domain"
 
-$current = Get-Content $hostsPath -ErrorAction Stop
-if ($current -contains $entry) {
-    Write-Host "Hosts entry already exists:" -ForegroundColor Green
-    Write-Host $entry
-    exit 0
-}
+Write-Host "Adding hosts entry. Run this script as Administrator." -ForegroundColor Yellow
+Write-Host $line
 
-Add-Content -Path $hostsPath -Value "`r`n# Project 02 YAS local domains"
-Add-Content -Path $hostsPath -Value $entry
-Write-Host "Added hosts entry:" -ForegroundColor Green
-Write-Host $entry
+$content = Get-Content $hostsPath -ErrorAction Stop
+$content = $content | Where-Object { $_ -notmatch "storefront\.$Domain|backoffice\.$Domain|api\.$Domain|grafana\.$Domain|identity\.$Domain" }
+$content += $line
+Set-Content -Path $hostsPath -Value $content -Encoding ASCII
+
+Write-Host "Updated $hostsPath" -ForegroundColor Green
