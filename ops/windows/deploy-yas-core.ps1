@@ -97,15 +97,20 @@ function Deploy-UiChart {
 
 Import-DotEnv ".deploy.env"
 
-if (Test-Path $KubeConfig) {
+if (![string]::IsNullOrWhiteSpace($KubeConfig) -and (Test-Path $KubeConfig)) {
     $env:KUBECONFIG = $KubeConfig
 }
 
 kubectl config use-context minikube | Out-Host
 
 Write-Host "=== Namespace: $Namespace ===" -ForegroundColor Green
-kubectl get namespace $Namespace 2>$null | Out-Null
-if ($LASTEXITCODE -ne 0) { kubectl create namespace $Namespace | Out-Host }
+$existingNamespace = kubectl get namespace $Namespace --ignore-not-found -o name
+if ([string]::IsNullOrWhiteSpace($existingNamespace)) {
+    Write-Host "Namespace $Namespace does not exist. Creating..." -ForegroundColor Yellow
+    kubectl create namespace $Namespace | Out-Host
+} else {
+    Write-Host "Namespace $Namespace already exists."
+}
 
 $enableIstio = [Environment]::GetEnvironmentVariable("ENABLE_ISTIO_INJECTION")
 if ($enableIstio -eq "true" -or $enableIstio -eq "True") {
@@ -132,8 +137,8 @@ $swaggerPath = Test-ChartPath "swagger-ui"
 Invoke-Checked "helm upgrade --install swagger-ui `"$swaggerPath`" --namespace $Namespace --create-namespace --set ingress.host=api.$Domain"
 
 foreach ($svc in @("storefront-bff", "storefront-ui", "backoffice-bff", "backoffice-ui", "swagger-ui")) {
-    kubectl -n $Namespace get svc $svc 2>$null | Out-Null
-    if ($LASTEXITCODE -eq 0) {
+    $existingService = kubectl -n $Namespace get svc $svc --ignore-not-found -o name
+    if (![string]::IsNullOrWhiteSpace($existingService)) {
         kubectl -n $Namespace patch svc $svc -p '{"spec":{"type":"NodePort"}}' | Out-Host
     } else {
         Write-Host "WARN: service $svc not found; check Helm output." -ForegroundColor Yellow
@@ -141,6 +146,12 @@ foreach ($svc in @("storefront-bff", "storefront-ui", "backoffice-bff", "backoff
 }
 
 foreach ($deploy in @("product", "cart", "order", "customer", "inventory", "tax", "media", "search", "storefront-bff", "storefront-ui", "backoffice-bff", "backoffice-ui", "swagger-ui")) {
+    $existingDeployment = kubectl -n $Namespace get deployment $deploy --ignore-not-found -o name
+    if ([string]::IsNullOrWhiteSpace($existingDeployment)) {
+        Write-Host "WARN: deployment $deploy not found; skip rollout status." -ForegroundColor Yellow
+        continue
+    }
+
     kubectl -n $Namespace rollout status deployment/$deploy --timeout=360s
     if ($LASTEXITCODE -ne 0) { Write-Host "WARN: rollout status failed for $deploy" -ForegroundColor Yellow }
 }
