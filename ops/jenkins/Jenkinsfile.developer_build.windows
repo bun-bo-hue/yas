@@ -148,7 +148,29 @@ pipeline {
         }
       }
     }
+    stage('Install Prometheus Operator CRDs') {
+      steps {
+        powershell '''
+        $ErrorActionPreference = "Stop"
 
+        Write-Host "=== Installing Prometheus Operator CRDs ==="
+
+        kubectl config use-context minikube
+
+        helm repo add prometheus-community https://prometheus-community.github.io/helm-charts --force-update
+        helm repo update
+
+        helm upgrade --install prometheus-operator-crds prometheus-community/prometheus-operator-crds `
+          --namespace monitoring `
+          --create-namespace
+
+        Write-Host "=== Waiting for ServiceMonitor CRD ==="
+        kubectl wait --for=condition=Established crd/servicemonitors.monitoring.coreos.com --timeout=120s
+
+        kubectl get crd servicemonitors.monitoring.coreos.com
+        '''
+      }
+    }
     stage('Deploy full YAS core set') {
       steps {
         powershell '''
