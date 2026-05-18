@@ -72,20 +72,16 @@ jobs:
             type: java
 
           # Frontend services
+          # Service name vẫn để storefront-ui/backoffice-ui cho đúng cách gọi trong report/deploy,
+          # nhưng source folder thật trong repo YAS là storefront và backoffice.
           - service: storefront-ui
-            context: storefront-ui
-            dockerfile: storefront-ui/Dockerfile
+            context: storefront
+            dockerfile: storefront/Dockerfile
             type: frontend
 
           - service: backoffice-ui
-            context: backoffice-ui
-            dockerfile: backoffice-ui/Dockerfile
-            type: frontend
-
-          # API documentation
-          - service: swagger-ui
-            context: swagger-ui
-            dockerfile: swagger-ui/Dockerfile
+            context: backoffice
+            dockerfile: backoffice/Dockerfile
             type: frontend
 
     steps:
@@ -112,7 +108,8 @@ jobs:
           echo "Checking Dockerfile: ${{ matrix.dockerfile }}"
           if [ ! -f "${{ matrix.dockerfile }}" ]; then
             echo "Dockerfile not found: ${{ matrix.dockerfile }}"
-            echo "Please check the actual YAS repository folder structure."
+            echo "Repository folder structure:"
+            find . -maxdepth 2 -name "Dockerfile" -print
             exit 1
           fi
 
