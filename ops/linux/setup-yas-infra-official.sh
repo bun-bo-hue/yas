@@ -38,6 +38,11 @@ for ns in kafka debezium default; do
     kubectl -n "$ns" scale deployment/debezium-connect --replicas=0 || true
   fi
 done
+kubectl -n postgres create secret generic yasadminuser.postgresql.credentials.postgresql.acid.zalan.do \
+  --from-literal=username=yasadminuser \
+  --from-literal=password=admin \
+  --dry-run=client -o yaml | kubectl apply -f -
 
+kubectl apply -f ops/k8s/postgres/postgresql-cluster.yaml
 echo "=== Infrastructure status ==="
 kubectl get pods -A

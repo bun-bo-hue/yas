@@ -17,7 +17,7 @@ spec:
   databases:
     product: yasadminuser
     cart: yasadminuser
-    ordering: yasadminuser
+    "order": yasadminuser
     customer: yasadminuser
     inventory: yasadminuser
     tax: yasadminuser
