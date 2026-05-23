@@ -1,0 +1,29 @@
+apiVersion: acid.zalan.do/v1
+kind: postgresql
+metadata:
+  name: postgresql
+  namespace: postgres
+spec:
+  teamId: "yas"
+  numberOfInstances: 1
+  volume:
+    size: 5Gi
+
+  users:
+    yasadminuser:
+      - superuser
+      - createdb
+
+  databases:
+    product: yasadminuser
+    cart: yasadminuser
+    ordering: yasadminuser
+    customer: yasadminuser
+    inventory: yasadminuser
+    tax: yasadminuser
+    media: yasadminuser
+    search: yasadminuser
+    keycloak: yasadminuser
+
+  postgresql:
+    version: "16"
