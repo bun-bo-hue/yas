@@ -1,0 +1,131 @@
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'NAMESPACE_SUFFIX', defaultValue: 'dev01', description: 'Final namespace = yas-<suffix>. Example: dev01')
+    string(name: 'DOCKERHUB_USER', defaultValue: 'juzharii', description: 'Docker Hub username/namespace storing yas-* images')
+    string(name: 'DOMAIN_ROOT', defaultValue: 'yas.local.com', description: 'App domain root. Final app domain = <suffix>.<domain-root>')
+
+    string(name: 'PRODUCT_BRANCH', defaultValue: 'main', description: 'Branch for product service')
+    string(name: 'CART_BRANCH', defaultValue: 'main', description: 'Branch for cart service')
+    string(name: 'ORDER_BRANCH', defaultValue: 'main', description: 'Branch for order service')
+    string(name: 'CUSTOMER_BRANCH', defaultValue: 'main', description: 'Branch for customer service')
+    string(name: 'INVENTORY_BRANCH', defaultValue: 'main', description: 'Branch for inventory service')
+    string(name: 'TAX_BRANCH', defaultValue: 'main', description: 'Branch for tax service')
+    string(name: 'MEDIA_BRANCH', defaultValue: 'main', description: 'Branch for media service')
+    string(name: 'SEARCH_BRANCH', defaultValue: 'main', description: 'Branch for search service')
+    string(name: 'STOREFRONT_BFF_BRANCH', defaultValue: 'main', description: 'Branch for storefront-bff service')
+    string(name: 'BACKOFFICE_BFF_BRANCH', defaultValue: 'main', description: 'Branch for backoffice-bff service')
+    string(name: 'STOREFRONT_BRANCH', defaultValue: 'main', description: 'Branch for storefront UI source folder')
+    string(name: 'BACKOFFICE_BRANCH', defaultValue: 'main', description: 'Branch for backoffice UI source folder')
+
+    booleanParam(name: 'ENABLE_ISTIO_INJECTION', defaultValue: false, description: 'Enable only when running service mesh demo')
+    booleanParam(name: 'STRICT_ROLLOUT', defaultValue: true, description: 'Fail job if any rollout fails')
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+        sh '''
+          git remote -v
+          git branch -a
+        '''
+      }
+    }
+
+    stage('Check tools and Minikube') {
+      steps {
+        sh '''
+          set -e
+          git --version
+          docker --version || true
+          kubectl version --client
+          minikube version
+          helm version
+          kubectl config use-context minikube
+          kubectl get nodes
+        '''
+      }
+    }
+
+    stage('Resolve branch tags') {
+      steps {
+        script {
+          def mapping = [
+            'PRODUCT': params.PRODUCT_BRANCH,
+            'CART': params.CART_BRANCH,
+            'ORDER': params.ORDER_BRANCH,
+            'CUSTOMER': params.CUSTOMER_BRANCH,
+            'INVENTORY': params.INVENTORY_BRANCH,
+            'TAX': params.TAX_BRANCH,
+            'MEDIA': params.MEDIA_BRANCH,
+            'SEARCH': params.SEARCH_BRANCH,
+            'STOREFRONT_BFF': params.STOREFRONT_BFF_BRANCH,
+            'BACKOFFICE_BFF': params.BACKOFFICE_BFF_BRANCH,
+            'STOREFRONT': params.STOREFRONT_BRANCH,
+            'BACKOFFICE': params.BACKOFFICE_BRANCH
+          ]
+
+          def lines = []
+          lines.add("NAMESPACE_SUFFIX=${params.NAMESPACE_SUFFIX}")
+          lines.add("NAMESPACE=yas-${params.NAMESPACE_SUFFIX}")
+          lines.add("DOCKERHUB_USER=${params.DOCKERHUB_USER}")
+          lines.add("DOMAIN_ROOT=${params.DOMAIN_ROOT}")
+          lines.add("ENABLE_ISTIO_INJECTION=${params.ENABLE_ISTIO_INJECTION}")
+          lines.add("STRICT_ROLLOUT=${params.STRICT_ROLLOUT}")
+
+          mapping.each { key, branchValue ->
+            def branch = branchValue.trim()
+            if (branch == 'main') {
+              lines.add("TAG_${key}=main")
+            } else {
+              def cmd = "git ls-remote origin refs/heads/${branch} | awk '{print \\\$1}'"
+              def sha = sh(returnStdout: true, script: cmd).trim()
+              if (sha == '') {
+                error("Branch '${branch}' was not found on origin. Check ${key}_BRANCH parameter.")
+              }
+              lines.add("TAG_${key}=${sha}")
+            }
+          }
+
+          writeFile file: '.deploy.env', text: lines.join('\n') + '\n'
+          sh '''
+            echo "=== Resolved deployment environment ==="
+            sed 's/^DOCKERHUB_USER=.*/DOCKERHUB_USER=***masked***/' .deploy.env
+          '''
+        }
+      }
+    }
+
+    stage('Deploy YAS core services') {
+      steps {
+        sh '''
+          set -e
+          set -a
+          . ./.deploy.env
+          set +a
+          chmod +x ops/linux/*.sh
+          ./ops/linux/deploy-yas-core.sh
+        '''
+      }
+    }
+
+    stage('Collect evidence') {
+      steps {
+        sh '''
+          set -a
+          . ./.deploy.env
+          set +a
+          ./ops/linux/collect-evidence.sh
+        '''
+      }
+    }
+  }
+
+  post {
+    always {
+      archiveArtifacts artifacts: '.deploy.env,evidence/**/*', allowEmptyArchive: true
+    }
+  }
+}

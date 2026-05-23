@@ -1,10 +1,10 @@
 apiVersion: networking.istio.io/v1beta1
 kind: DestinationRule
 metadata:
-  name: yas-default-mtls
-  namespace: yas-dev
+  name: default-mtls
+  namespace: yas-dev01
 spec:
-  host: "*.yas-dev.svc.cluster.local"
+  host: "*.yas-dev01.svc.cluster.local"
   trafficPolicy:
     tls:
       mode: ISTIO_MUTUAL

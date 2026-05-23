@@ -1,0 +1,26 @@
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'NAMESPACE_SUFFIX', defaultValue: 'dev01', description: 'Delete namespace yas-<suffix>')
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Delete environment') {
+      steps {
+        sh '''
+          set -e
+          chmod +x ops/linux/*.sh
+          export NAMESPACE_SUFFIX="${NAMESPACE_SUFFIX}"
+          ./ops/linux/delete-dev-env.sh
+        '''
+      }
+    }
+  }
+}

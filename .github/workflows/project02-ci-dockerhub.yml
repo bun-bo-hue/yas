@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - "**"
-
   workflow_dispatch:
 
 env:
@@ -13,76 +12,89 @@ env:
 
 jobs:
   build-and-push:
-    name: Build ${{ matrix.service }}
+    name: Build ${{ matrix.image_repo }}
     runs-on: ubuntu-latest
-
     strategy:
       fail-fast: false
       matrix:
         include:
           # Java backend services
           - service: product
-            context: product
+            source_dir: product
             dockerfile: product/Dockerfile
             type: java
-
+            image_repo: yas-product
+            extra_image_repo: ""
           - service: cart
-            context: cart
+            source_dir: cart
             dockerfile: cart/Dockerfile
             type: java
-
+            image_repo: yas-cart
+            extra_image_repo: ""
           - service: order
-            context: order
+            source_dir: order
             dockerfile: order/Dockerfile
             type: java
-
+            image_repo: yas-order
+            extra_image_repo: ""
           - service: customer
-            context: customer
+            source_dir: customer
             dockerfile: customer/Dockerfile
             type: java
-
+            image_repo: yas-customer
+            extra_image_repo: ""
           - service: inventory
-            context: inventory
+            source_dir: inventory
             dockerfile: inventory/Dockerfile
             type: java
-
+            image_repo: yas-inventory
+            extra_image_repo: ""
           - service: tax
-            context: tax
+            source_dir: tax
             dockerfile: tax/Dockerfile
             type: java
-
+            image_repo: yas-tax
+            extra_image_repo: ""
           - service: media
-            context: media
+            source_dir: media
             dockerfile: media/Dockerfile
             type: java
-
+            image_repo: yas-media
+            extra_image_repo: ""
           - service: search
-            context: search
+            source_dir: search
             dockerfile: search/Dockerfile
             type: java
-
+            image_repo: yas-search
+            extra_image_repo: ""
           - service: storefront-bff
-            context: storefront-bff
+            source_dir: storefront-bff
             dockerfile: storefront-bff/Dockerfile
             type: java
-
+            image_repo: yas-storefront-bff
+            extra_image_repo: ""
           - service: backoffice-bff
-            context: backoffice-bff
+            source_dir: backoffice-bff
             dockerfile: backoffice-bff/Dockerfile
             type: java
+            image_repo: yas-backoffice-bff
+            extra_image_repo: ""
 
-          # Frontend services
-          # Service name vẫn để storefront-ui/backoffice-ui cho đúng cách gọi trong report/deploy,
-          # nhưng source folder thật trong repo YAS là storefront và backoffice.
+          # Frontend source folders in the current YAS repo are storefront and backoffice.
+          # The application/deployment names are storefront-ui and backoffice-ui.
+          # We push both official chart-compatible image names and assignment-friendly aliases.
           - service: storefront-ui
-            context: storefront
+            source_dir: storefront
             dockerfile: storefront/Dockerfile
             type: frontend
-
+            image_repo: yas-storefront
+            extra_image_repo: yas-storefront-ui
           - service: backoffice-ui
-            context: backoffice
+            source_dir: backoffice
             dockerfile: backoffice/Dockerfile
             type: frontend
+            image_repo: yas-backoffice
+            extra_image_repo: yas-backoffice-ui
 
     steps:
       - name: Checkout source
@@ -92,15 +104,11 @@ jobs:
         id: vars
         shell: bash
         run: |
-          SHORT_SHA="${GITHUB_SHA::7}"
-          BRANCH_NAME="${GITHUB_REF_NAME}"
-
-          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          echo "branch_name=${BRANCH_NAME}" >> "$GITHUB_OUTPUT"
-
+          echo "full_sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "branch_name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           echo "Full commit id: ${GITHUB_SHA}"
-          echo "Short commit id: ${SHORT_SHA}"
-          echo "Branch name: ${BRANCH_NAME}"
+          echo "Branch name: ${GITHUB_REF_NAME}"
 
       - name: Check Dockerfile exists
         shell: bash
@@ -108,8 +116,8 @@ jobs:
           echo "Checking Dockerfile: ${{ matrix.dockerfile }}"
           if [ ! -f "${{ matrix.dockerfile }}" ]; then
             echo "Dockerfile not found: ${{ matrix.dockerfile }}"
-            echo "Repository folder structure:"
-            find . -maxdepth 2 -name "Dockerfile" -print
+            echo "Existing Dockerfiles:"
+            find . -maxdepth 3 -name Dockerfile -print
             exit 1
           fi
 
@@ -131,12 +139,10 @@ jobs:
           else
             MVN="mvn"
           fi
-
           echo "Building Maven artifact for service: ${{ matrix.service }}"
-          $MVN -B -pl "${{ matrix.context }}" -am -DskipTests package
-
-          echo "Checking target folder:"
-          ls -la "${{ matrix.context }}/target" || true
+          $MVN -B -pl "${{ matrix.source_dir }}" -am -DskipTests package
+          echo "Target folder:"
+          ls -la "${{ matrix.source_dir }}/target"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -151,24 +157,31 @@ jobs:
         id: meta
         shell: bash
         run: |
-          IMAGE_NAME="${{ env.DOCKERHUB_NAMESPACE }}/yas-${{ matrix.service }}"
-
-          TAGS="${IMAGE_NAME}:${GITHUB_SHA}"
-
-          if [ "${GITHUB_REF_NAME}" = "main" ]; then
-            TAGS="${TAGS},${IMAGE_NAME}:main,${IMAGE_NAME}:latest"
+          if [ -z "${DOCKERHUB_NAMESPACE}" ]; then
+            echo "Missing DOCKERHUB_USERNAME secret"
+            exit 1
           fi
 
-          echo "image_name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
-          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          TAGS="${DOCKERHUB_NAMESPACE}/${{ matrix.image_repo }}:${GITHUB_SHA}"
 
-          echo "Docker image: ${IMAGE_NAME}"
+          if [ -n "${{ matrix.extra_image_repo }}" ]; then
+            TAGS="${TAGS},${DOCKERHUB_NAMESPACE}/${{ matrix.extra_image_repo }}:${GITHUB_SHA}"
+          fi
+
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            TAGS="${TAGS},${DOCKERHUB_NAMESPACE}/${{ matrix.image_repo }}:main,${DOCKERHUB_NAMESPACE}/${{ matrix.image_repo }}:latest"
+            if [ -n "${{ matrix.extra_image_repo }}" ]; then
+              TAGS="${TAGS},${DOCKERHUB_NAMESPACE}/${{ matrix.extra_image_repo }}:main,${DOCKERHUB_NAMESPACE}/${{ matrix.extra_image_repo }}:latest"
+            fi
+          fi
+
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
           echo "Docker tags: ${TAGS}"
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.context }}
+          context: ${{ matrix.source_dir }}
           file: ${{ matrix.dockerfile }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -177,5 +190,5 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.branch=${{ github.ref_name }}
             org.opencontainers.image.service=${{ matrix.service }}
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          cache-from: type=gha,scope=${{ matrix.image_repo }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image_repo }}
